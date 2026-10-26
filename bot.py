@@ -1329,6 +1329,14 @@ async def setnick_prefix(
     nickname: str
 ):
 
+    # Allow names with spaces to be wrapped in straight or curly quotes.
+    nickname = nickname.strip()
+    if len(nickname) >= 2 and (
+        (nickname[0] == nickname[-1] and nickname[0] in ('"', "'"))
+        or (nickname[0] == '“' and nickname[-1] == '”')
+    ):
+        nickname = nickname[1:-1].strip()
+
     success, error = await change_nickname(
         member,
         nickname
@@ -2867,7 +2875,8 @@ async def role_prefix(
             )
 
             await ctx.send(
-                f"✅ Added {role.mention} to {member.mention}."
+                f"✅ Added {role.mention} to {member.mention}.",
+                allowed_mentions=discord.AllowedMentions.none()
             )
 
         else:
@@ -2878,7 +2887,8 @@ async def role_prefix(
             )
 
             await ctx.send(
-                f"✅ Removed {role.mention} from {member.mention}."
+                f"✅ Removed {role.mention} from {member.mention}.",
+                allowed_mentions=discord.AllowedMentions.none()
             )
 
     except discord.Forbidden:
@@ -2930,7 +2940,8 @@ async def role_add_slash(
         )
 
         await interaction.response.send_message(
-            f"✅ Added {role.mention} to {member.mention}."
+            f"✅ Added {role.mention} to {member.mention}.",
+            allowed_mentions=discord.AllowedMentions.none()
         )
 
     except discord.Forbidden:
@@ -2973,7 +2984,8 @@ async def role_remove_slash(
         )
 
         await interaction.response.send_message(
-            f"✅ Removed {role.mention} from {member.mention}."
+            f"✅ Removed {role.mention} from {member.mention}.",
+            allowed_mentions=discord.AllowedMentions.none()
         )
 
     except discord.Forbidden:
@@ -3520,6 +3532,16 @@ async def on_message(message):
     # Process prefix commands immediately so an error in AFK/statistics
     # handling below cannot prevent commands such as ?ban or ?kick.
     await bot.process_commands(message)
+
+    # The message that invokes ?afk must not immediately count as the
+    # user's return. Check the parsed command and skip AFK-return handling.
+    try:
+        parsed_context = await bot.get_context(message)
+        if parsed_context.valid and parsed_context.command is not None:
+            if parsed_context.command.qualified_name == "afk":
+                return
+    except Exception as error:
+        print(f"AFK command detection error: {error}")
 
     if message.guild:
 

@@ -623,11 +623,20 @@ class RoleSelect(discord.ui.Select):
             color=discord.Color.green()
         )
 
-        embed.description = (
-            f"**Member:** {self.target_member.mention}\n\n"
-            f"**Old rank:** {old_text}\n"
-            f"**New rank:** {new_role.mention}"
-        )
+        if self.action == "promote":
+            embed.description = (
+                f"{self.target_member.mention} was promoted because they have "
+                f"been active!\n\n"
+                f"**Previous rank:** {old_text}\n"
+                f"**New rank:** {new_role.mention}\n\n"
+                "Thanks for being active!"
+            )
+        else:
+            embed.description = (
+                f"{self.target_member.mention} was demoted.\n\n"
+                f"**Previous rank:** {old_text}\n"
+                f"**New rank:** {new_role.mention}"
+            )
 
         await interaction.response.edit_message(
             embed=embed,
@@ -2838,64 +2847,69 @@ async def demote_slash(
 # =========================================================
 
 @bot.command(name="role")
-@has_permissions_or_owner(manage_roles=True)
-async def role_prefix(
-    ctx,
-    action: str,
-    member: discord.Member,
-    role: discord.Role
-):
-
+@commands.has_guild_permissions(manage_roles=True)
+async def role_prefix(ctx, action: str, *, arguments: str):
+    """Use ?role create <name>, ?role add @member @role, or ?role remove @member @role."""
     action = action.lower()
+    arguments = arguments.strip()
 
-    if action not in ("add", "remove"):
-
-        await ctx.send(
-            "❌ Use `?role add @user @role` or "
-            "`?role remove @user @role`."
-        )
-
+    if action == "create":
+        role_name = arguments.strip().strip('"').strip("'")
+        if not role_name:
+            await ctx.send("❌ Usage: `?role create Role Name`")
+            return
+        if len(role_name) > 100:
+            await ctx.send("❌ Role names must be 100 characters or fewer.")
+            return
+        try:
+            created_role = await ctx.guild.create_role(
+                name=role_name,
+                reason=f"Role created by {ctx.author}"
+            )
+            await ctx.send(
+                f"✅ Created role {created_role.mention}.",
+                allowed_mentions=discord.AllowedMentions.none()
+            )
+        except discord.Forbidden:
+            await ctx.send("❌ I don't have permission to create roles.")
         return
 
-    if role >= ctx.guild.me.top_role:
-
+    if action not in ("add", "remove"):
         await ctx.send(
-            "❌ I cannot manage that role."
+            "❌ Use `?role create Role Name`, `?role add @user @role`, "
+            "or `?role remove @user @role`."
         )
+        return
 
+    parts = arguments.split(maxsplit=1)
+    if len(parts) != 2:
+        await ctx.send("❌ Usage: `?role add @user @role` or `?role remove @user @role`.")
         return
 
     try:
+        member = await commands.MemberConverter().convert(ctx, parts[0])
+        role = await commands.RoleConverter().convert(ctx, parts[1])
+    except commands.CommandError:
+        await ctx.send("❌ Member or role not found.")
+        return
 
+    if role >= ctx.guild.me.top_role:
+        await ctx.send("❌ I cannot manage that role.")
+        return
+
+    try:
         if action == "add":
-
-            await member.add_roles(
-                role,
-                reason=f"Role added by {ctx.author}"
-            )
-
-            await ctx.send(
-                f"✅ Added {role.mention} to {member.mention}.",
-                allowed_mentions=discord.AllowedMentions.none()
-            )
-
+            await member.add_roles(role, reason=f"Role added by {ctx.author}")
+            verb = "Added"
         else:
-
-            await member.remove_roles(
-                role,
-                reason=f"Role removed by {ctx.author}"
-            )
-
-            await ctx.send(
-                f"✅ Removed {role.mention} from {member.mention}.",
-                allowed_mentions=discord.AllowedMentions.none()
-            )
-
-    except discord.Forbidden:
-
+            await member.remove_roles(role, reason=f"Role removed by {ctx.author}")
+            verb = "Removed"
         await ctx.send(
-            "❌ I don't have permission to manage that role."
+            f"✅ {verb} {role.mention} {'to' if action == 'add' else 'from'} {member.mention}.",
+            allowed_mentions=discord.AllowedMentions.none()
         )
+    except discord.Forbidden:
+        await ctx.send("❌ I don't have permission to manage that role.")
 
 
 # =========================================================
@@ -2908,96 +2922,68 @@ role_group = app_commands.Group(
 )
 
 
-@role_group.command(
-    name="add",
-    description="Add a role to a member."
-)
-@app_commands.describe(
-    member="Member",
-    role="Role"
-)
-@app_commands.check(app_has_permissions_or_owner(manage_roles=True))
-async def role_add_slash(
-    interaction,
-    member: discord.Member,
-    role: discord.Role
-):
-
-    if role >= interaction.guild.me.top_role:
-
+@role_group.command(name="create", description="Create a new server role.")
+@app_commands.describe(name="Name for the new role")
+@app_commands.default_permissions(manage_roles=True)
+@app_commands.checks.has_permissions(manage_roles=True)
+async def role_create_slash(interaction: discord.Interaction, name: str):
+    name = name.strip()
+    if not name or len(name) > 100:
         await interaction.response.send_message(
-            "❌ I cannot manage that role.",
+            "❌ Role names must contain 1–100 characters.", ephemeral=True
+        )
+        return
+    try:
+        created_role = await interaction.guild.create_role(
+            name=name,
+            reason=f"Role created by {interaction.user}"
+        )
+        await interaction.response.send_message(
+            f"✅ Created role {created_role.mention}.",
+            allowed_mentions=discord.AllowedMentions.none(),
             ephemeral=True
         )
-
-        return
-
-    try:
-
-        await member.add_roles(
-            role,
-            reason=f"Role added by {interaction.user}"
+    except discord.Forbidden:
+        await interaction.response.send_message(
+            "❌ I don't have permission to create roles.", ephemeral=True
         )
 
+
+@role_group.command(name="add", description="Add a role to a member.")
+@app_commands.describe(member="Member", role="Role")
+@app_commands.check(app_has_permissions_or_owner(manage_roles=True))
+async def role_add_slash(interaction, member: discord.Member, role: discord.Role):
+    if role >= interaction.guild.me.top_role:
+        await interaction.response.send_message("❌ I cannot manage that role.", ephemeral=True)
+        return
+    try:
+        await member.add_roles(role, reason=f"Role added by {interaction.user}")
         await interaction.response.send_message(
             f"✅ Added {role.mention} to {member.mention}.",
             allowed_mentions=discord.AllowedMentions.none()
         )
-
     except discord.Forbidden:
-
-        await interaction.response.send_message(
-            "❌ I don't have permission to manage that role.",
-            ephemeral=True
-        )
+        await interaction.response.send_message("❌ I don't have permission to manage that role.", ephemeral=True)
 
 
-@role_group.command(
-    name="remove",
-    description="Remove a role from a member."
-)
-@app_commands.describe(
-    member="Member",
-    role="Role"
-)
+@role_group.command(name="remove", description="Remove a role from a member.")
+@app_commands.describe(member="Member", role="Role")
 @app_commands.check(app_has_permissions_or_owner(manage_roles=True))
-async def role_remove_slash(
-    interaction,
-    member: discord.Member,
-    role: discord.Role
-):
-
+async def role_remove_slash(interaction, member: discord.Member, role: discord.Role):
     if role >= interaction.guild.me.top_role:
-
-        await interaction.response.send_message(
-            "❌ I cannot manage that role.",
-            ephemeral=True
-        )
-
+        await interaction.response.send_message("❌ I cannot manage that role.", ephemeral=True)
         return
-
     try:
-
-        await member.remove_roles(
-            role,
-            reason=f"Role removed by {interaction.user}"
-        )
-
+        await member.remove_roles(role, reason=f"Role removed by {interaction.user}")
         await interaction.response.send_message(
             f"✅ Removed {role.mention} from {member.mention}.",
             allowed_mentions=discord.AllowedMentions.none()
         )
-
     except discord.Forbidden:
-
-        await interaction.response.send_message(
-            "❌ I don't have permission to manage that role.",
-            ephemeral=True
-        )
+        await interaction.response.send_message("❌ I don't have permission to manage that role.", ephemeral=True)
 
 
 bot.tree.add_command(role_group)
-
 
 # =========================================================
 # LOCK / UNLOCK CHANNEL
@@ -3789,6 +3775,13 @@ async def on_command_error(ctx, error):
 @bot.event
 async def on_ready():
 
+    await bot.change_presence(
+        activity=discord.Streaming(
+            name="Abel Community",
+            url="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        )
+    )
+
     print("=" * 55)
 
     print(
@@ -3992,6 +3985,200 @@ async def roles_slash(interaction: discord.Interaction):
         embed=embed,
         view=view,
         allowed_mentions=discord.AllowedMentions.none()
+    )
+
+
+# =========================================================
+# ACTIVITY CHECK (ASSISTANT FOUNDER + FOUNDER ONLY)
+# =========================================================
+
+ASSISTANT_FOUNDER_ROLE_ID = 1545089488227795035
+
+# Track the first three human members who react to each activity check.
+ACTIVITY_CHECK_MESSAGES = {}
+ACTIVITY_CHECK_WINNERS = {}
+
+
+@bot.event
+async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
+    # Ignore DMs, the bot itself, and every reaction except the activity-check emoji.
+    if payload.guild_id is None or payload.user_id == bot.user.id:
+        return
+    if str(payload.emoji) != "✅":
+        return
+
+    check_data = ACTIVITY_CHECK_MESSAGES.get(payload.message_id)
+    if check_data is None:
+        return
+
+    winners = ACTIVITY_CHECK_WINNERS.setdefault(payload.message_id, [])
+    if payload.user_id in winners or len(winners) >= 3:
+        return
+
+    # Resolve the member so bots and deleted/invalid users are not counted.
+    guild = bot.get_guild(payload.guild_id)
+    if guild is None:
+        return
+
+    member = guild.get_member(payload.user_id)
+    if member is None:
+        try:
+            member = await guild.fetch_member(payload.user_id)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            return
+
+    if member.bot:
+        return
+
+    winners.append(payload.user_id)
+
+    # Announce only once, when the third distinct human member reacts.
+    if len(winners) == 3:
+        channel = bot.get_channel(check_data["channel_id"])
+        if channel is None:
+            try:
+                channel = await bot.fetch_channel(check_data["channel_id"])
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                return
+
+        lines = []
+        medals = ["🥇", "🥈", "🥉"]
+        for position, user_id in enumerate(winners):
+            user = guild.get_member(user_id)
+            if user is None:
+                try:
+                    user = await guild.fetch_member(user_id)
+                except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                    user = None
+
+            mention = user.mention if user is not None else f"<@{user_id}>"
+            lines.append(f"{medals[position]} **{position + 1}.** {mention}")
+
+        result_embed = discord.Embed(
+            title=check_data.get("result_title", "☑️ ACTIVITY CHECK COMPLETE!"),
+            description="\n".join(lines),
+            color=discord.Color.green()
+        )
+
+        await channel.send(
+            embed=result_embed,
+            allowed_mentions=discord.AllowedMentions(users=True)
+        )
+
+
+@bot.tree.command(
+    name="activitycheck",
+    description="Post a community activity check."
+)
+async def activitycheck_slash(interaction: discord.Interaction):
+    if interaction.guild is None or interaction.channel is None:
+        await interaction.response.send_message(
+            "❌ This command can only be used in a server.",
+            ephemeral=True
+        )
+        return
+
+    # Founder is the configured owner account; Assistant Founders use the role ID.
+    is_founder = interaction.user.id == OWNER_USER_ID
+    is_assistant_founder = any(
+        role.id == ASSISTANT_FOUNDER_ROLE_ID
+        for role in getattr(interaction.user, "roles", [])
+    )
+
+    if not (is_founder or is_assistant_founder):
+        await interaction.response.send_message(
+            "❌ Only the Founder and Assistant Founders can use this command.",
+            ephemeral=True
+        )
+        return
+
+    message = await interaction.channel.send(
+        "@everyone\n\n"
+        "**IMPORTANT — COMMUNITY ACTIVITY CHECK**\n\n"
+        "We are checking the activity of our community.\n\n"
+        "Please react to this message with ✅ to confirm that you are active "
+        "and still part of our community.\n\n"
+        "Your participation is appreciated. Thank you for being part of "
+        "Abel Mod Community!",
+        allowed_mentions=discord.AllowedMentions(
+            everyone=True, users=False, roles=False
+        )
+    )
+    ACTIVITY_CHECK_MESSAGES[message.id] = {
+        "channel_id": interaction.channel.id,
+        "result_title": "☑️ ACTIVITY CHECK COMPLETE!"
+    }
+    ACTIVITY_CHECK_WINNERS[message.id] = []
+
+    await message.add_reaction("✅")
+    await interaction.response.send_message(
+        "✅ Activity check posted successfully.",
+        ephemeral=True
+    )
+
+
+@bot.tree.command(
+    name="activitycheckstaff",
+    description="Post an activity check for the Staff Team."
+)
+async def activitycheckstaff_slash(interaction: discord.Interaction):
+    if interaction.guild is None or interaction.channel is None:
+        await interaction.response.send_message(
+            "❌ This command can only be used in a server.",
+            ephemeral=True
+        )
+        return
+
+    # Same permissions as /activitycheck: Founder or Assistant Founder.
+    is_founder = interaction.user.id == OWNER_USER_ID
+    is_assistant_founder = any(
+        role.id == ASSISTANT_FOUNDER_ROLE_ID
+        for role in getattr(interaction.user, "roles", [])
+    )
+    if not (is_founder or is_assistant_founder):
+        await interaction.response.send_message(
+            "❌ Only the Founder and Assistant Founders can use this command.",
+            ephemeral=True
+        )
+        return
+
+    # Match the Staff Team role regardless of capitalization or spaces.
+    staff_role = next(
+        (
+            role for role in interaction.guild.roles
+            if "".join(ch for ch in role.name.lower() if ch.isalnum()) == "staffteam"
+        ),
+        None
+    )
+    if staff_role is None:
+        await interaction.response.send_message(
+            "❌ I couldn't find a role named Staff Team. Please check the role name.",
+            ephemeral=True
+        )
+        return
+
+    message = await interaction.channel.send(
+        f"{staff_role.mention}\n\n"
+        "**IMPORTANT — STAFF ACTIVITY CHECK**\n\n"
+        "We are checking the activity of our Staff Team.\n\n"
+        "Please react to this message with ✅ to confirm that you are active "
+        "and still part of the staff team.\n\n"
+        "Your contribution is appreciated. Thank you for being part of "
+        "Abel Community!",
+        allowed_mentions=discord.AllowedMentions(
+            everyone=False, roles=[staff_role], users=False
+        )
+    )
+    ACTIVITY_CHECK_MESSAGES[message.id] = {
+        "channel_id": interaction.channel.id,
+        "result_title": "☑️ STAFF ACTIVITY CHECK COMPLETE!"
+    }
+    ACTIVITY_CHECK_WINNERS[message.id] = []
+
+    await message.add_reaction("✅")
+    await interaction.response.send_message(
+        "✅ Staff activity check posted successfully.",
+        ephemeral=True
     )
 
 

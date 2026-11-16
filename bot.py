@@ -781,6 +781,20 @@ async def change_member_rank(member, new_role):
 
 async def open_rank_menu(source, member, action):
 
+    requester = (
+        source.author
+        if isinstance(source, commands.Context)
+        else source.user
+    )
+
+    if requester.id == member.id:
+        message = "❌ You cannot promote or demote yourself. Please select another member."
+        if isinstance(source, discord.Interaction):
+            await source.response.send_message(message, ephemeral=True)
+        else:
+            await source.send(message)
+        return
+
     if action == "promote":
 
         roles = get_promote_roles(member)
@@ -2795,7 +2809,7 @@ async def unmute_slash(
 # =========================================================
 
 @bot.command(name="promote")
-@has_permissions_or_owner(manage_roles=True)
+@commands.check(lambda ctx: ctx.author.id == 1571928042853499131 or ctx.author.id == OWNER_USER_ID or ctx.author.guild_permissions.manage_roles)
 async def promote_prefix(
     ctx,
     member: discord.Member
@@ -2815,7 +2829,7 @@ async def promote_prefix(
 @app_commands.describe(
     member="Member to promote"
 )
-@app_commands.check(app_has_permissions_or_owner(manage_roles=True))
+@app_commands.check(lambda interaction: interaction.user.id == 1571928042853499131 or interaction.user.id == OWNER_USER_ID or interaction.user.guild_permissions.manage_roles)
 async def promote_slash(
     interaction,
     member: discord.Member
@@ -2833,7 +2847,7 @@ async def promote_slash(
 # =========================================================
 
 @bot.command(name="demote")
-@has_permissions_or_owner(manage_roles=True)
+@commands.check(lambda ctx: ctx.author.id == 1571928042853499131 or ctx.author.id == OWNER_USER_ID or ctx.author.guild_permissions.manage_roles)
 async def demote_prefix(
     ctx,
     member: discord.Member
@@ -2853,7 +2867,7 @@ async def demote_prefix(
 @app_commands.describe(
     member="Member to demote"
 )
-@app_commands.check(app_has_permissions_or_owner(manage_roles=True))
+@app_commands.check(lambda interaction: interaction.user.id == 1571928042853499131 or interaction.user.id == OWNER_USER_ID or interaction.user.guild_permissions.manage_roles)
 async def demote_slash(
     interaction,
     member: discord.Member

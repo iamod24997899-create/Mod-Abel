@@ -2804,6 +2804,24 @@ async def unmute_slash(
         )
 
 
+# Prevent the same prefix-command message from opening its rank panel twice.
+_HANDLED_RANK_COMMAND_MESSAGES = set()
+
+
+def _rank_command_already_handled(message_id: int) -> bool:
+    if message_id in _HANDLED_RANK_COMMAND_MESSAGES:
+        return True
+
+    _HANDLED_RANK_COMMAND_MESSAGES.add(message_id)
+
+    # Keep the in-memory guard bounded.
+    if len(_HANDLED_RANK_COMMAND_MESSAGES) > 5000:
+        _HANDLED_RANK_COMMAND_MESSAGES.clear()
+        _HANDLED_RANK_COMMAND_MESSAGES.add(message_id)
+
+    return False
+
+
 # =========================================================
 # PROMOTE
 # =========================================================
@@ -2814,6 +2832,9 @@ async def promote_prefix(
     ctx,
     member: discord.Member
 ):
+
+    if _rank_command_already_handled(ctx.message.id):
+        return
 
     await open_rank_menu(
         ctx,
@@ -2852,6 +2873,9 @@ async def demote_prefix(
     ctx,
     member: discord.Member
 ):
+
+    if _rank_command_already_handled(ctx.message.id):
+        return
 
     await open_rank_menu(
         ctx,

@@ -2827,7 +2827,7 @@ def _rank_command_already_handled(message_id: int) -> bool:
 # =========================================================
 
 @bot.command(name="promote")
-@commands.check(lambda ctx: ctx.author.id == 1571928042853499131 or ctx.author.id == OWNER_USER_ID or ctx.author.guild_permissions.manage_roles)
+@commands.check(lambda ctx: any(role.id == 1571928042853499131 for role in ctx.author.roles) or ctx.author.id == OWNER_USER_ID or ctx.author.guild_permissions.manage_roles)
 async def promote_prefix(
     ctx,
     member: discord.Member
@@ -2850,7 +2850,7 @@ async def promote_prefix(
 @app_commands.describe(
     member="Member to promote"
 )
-@app_commands.check(lambda interaction: interaction.user.id == 1571928042853499131 or interaction.user.id == OWNER_USER_ID or interaction.user.guild_permissions.manage_roles)
+@app_commands.check(lambda interaction: any(role.id == 1571928042853499131 for role in interaction.user.roles) or interaction.user.id == OWNER_USER_ID or interaction.user.guild_permissions.manage_roles)
 async def promote_slash(
     interaction,
     member: discord.Member
@@ -2868,7 +2868,7 @@ async def promote_slash(
 # =========================================================
 
 @bot.command(name="demote")
-@commands.check(lambda ctx: ctx.author.id == 1571928042853499131 or ctx.author.id == OWNER_USER_ID or ctx.author.guild_permissions.manage_roles)
+@commands.check(lambda ctx: any(role.id == 1571928042853499131 for role in ctx.author.roles) or ctx.author.id == OWNER_USER_ID or ctx.author.guild_permissions.manage_roles)
 async def demote_prefix(
     ctx,
     member: discord.Member
@@ -2891,7 +2891,7 @@ async def demote_prefix(
 @app_commands.describe(
     member="Member to demote"
 )
-@app_commands.check(lambda interaction: interaction.user.id == 1571928042853499131 or interaction.user.id == OWNER_USER_ID or interaction.user.guild_permissions.manage_roles)
+@app_commands.check(lambda interaction: any(role.id == 1571928042853499131 for role in interaction.user.roles) or interaction.user.id == OWNER_USER_ID or interaction.user.guild_permissions.manage_roles)
 async def demote_slash(
     interaction,
     member: discord.Member

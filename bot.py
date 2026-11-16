@@ -547,10 +547,11 @@ def get_demote_roles(member):
 
 class RoleSelect(discord.ui.Select):
 
-    def __init__(self, target_member, action, roles):
+    def __init__(self, target_member, action, roles, authorized_user_id):
 
         self.target_member = target_member
         self.action = action
+        self.authorized_user_id = authorized_user_id
 
         options = []
 
@@ -578,6 +579,13 @@ class RoleSelect(discord.ui.Select):
         )
 
     async def callback(self, interaction):
+
+        if interaction.user.id != self.authorized_user_id:
+            await interaction.response.send_message(
+                "❌ Only the person who opened this Promote/Demote menu can select a rank.",
+                ephemeral=True
+            )
+            return
 
         role_id = int(self.values[0])
 
@@ -646,18 +654,20 @@ class RoleSelect(discord.ui.Select):
 
 class RolePanel(discord.ui.View):
 
-    def __init__(self, target_member, action, roles):
+    def __init__(self, target_member, action, roles, authorized_user_id):
 
         super().__init__(timeout=60)
 
         self.target_member = target_member
         self.action = action
+        self.authorized_user_id = authorized_user_id
 
         self.add_item(
             RoleSelect(
                 target_member,
                 action,
-                roles
+                roles,
+                authorized_user_id
             )
         )
 
@@ -666,6 +676,13 @@ class RolePanel(discord.ui.View):
         style=discord.ButtonStyle.danger
     )
     async def cancel(self, interaction, button):
+
+        if interaction.user.id != self.authorized_user_id:
+            await interaction.response.send_message(
+                "❌ Only the person who opened this Promote/Demote menu can cancel it.",
+                ephemeral=True
+            )
+            return
 
         await interaction.response.edit_message(
             content="❌ Rank change cancelled.",
@@ -832,10 +849,17 @@ async def open_rank_menu(source, member, action):
         url=member.display_avatar.url
     )
 
+    authorized_user_id = (
+        source.author.id
+        if isinstance(source, commands.Context)
+        else source.user.id
+    )
+
     view = RolePanel(
         member,
         action,
-        roles
+        roles,
+        authorized_user_id
     )
 
     if isinstance(source, discord.Interaction):
